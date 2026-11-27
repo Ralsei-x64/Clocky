@@ -272,7 +272,8 @@ function clockScreen(face, now, asset, background, tint) {
 
 function meter(x, y, width, fraction, color) {
     const filled = Math.round(width * Math.max(0, Math.min(1, fraction || 0)) * 100) / 100;
-    return `<svg x="${x}" y="${y}" width="${width}" height="5"><defs><clipPath id="bar-${width}"><rect width="${width}" height="5" rx="2.5"/></clipPath></defs><g clip-path="url(#bar-${width})"><rect width="${width}" height="5" fill="#1b1b1b"/><rect width="${filled}" height="5" fill="${color}"/></g></svg>`;
+    const fill = filled > 0 ? `<rect width="${filled}" height="5" fill="${color}"/>` : "";
+    return `<svg x="${x}" y="${y}" width="${width}" height="5"><defs><clipPath id="bar-${width}"><rect width="${width}" height="5" rx="2.5"/></clipPath></defs><g clip-path="url(#bar-${width})"><rect width="${width}" height="5" fill="#1b1b1b"/>${fill}</g></svg>`;
 }
 
 function quotaScreen(mode, remaining, asset) {
@@ -379,12 +380,26 @@ function mediaScreen(track, now, asset, labels = mediaLabels(track), age = 0, co
         <g fill="#b3b3b3">${labelRow(labels.artist, "media-artist", 29, age)}</g></svg>` + mediaTimeline(track, now);
 }
 
+function mediaPosition(track, now) {
+    if (!Number.isFinite(track?.position)) return null;
+    const delta = track.playing && Number.isFinite(track.sampledAt)
+        ? Math.max(0, now - track.sampledAt) / 1000 * (track.rate ?? 1) : 0;
+    return Math.max(0, Math.min(track.duration > 0 ? track.duration : Infinity, track.position + delta));
+}
+
+function mediaTickDelay(track, now) {
+    const position = mediaPosition(track, now);
+    const rate = track?.rate ?? 1;
+    if (!track?.playing || position === null || !rate ||
+        (rate > 0 && position === track.duration) || (rate < 0 && position === 0)) return 1000;
+    const fraction = position - Math.floor(position);
+    const seconds = rate > 0 ? (1 - fraction) / rate : (fraction + .001) / -rate;
+    return Math.max(1, Math.min(1000, Math.ceil(seconds * 1000)));
+}
+
 function mediaTimeline(track, now) {
-    const position = Number.isFinite(track.position)
-        ? track.position + (track.playing ? Math.max(0, now - track.sampledAt) / 1000 * (track.rate ?? 1) : 0)
-        : null;
+    const elapsed = mediaPosition(track, now);
     const duration = track.duration;
-    const elapsed = position !== null && duration > 0 ? Math.min(position, duration) : position;
     const currentTime = durationText(elapsed), totalTime = durationText(duration);
     const barStart = 53 + Math.max(28, currentTime.length * 5.6) + 6;
     const barEnd = 223 - Math.max(28, totalTime.length * 5.6) - 6;
@@ -428,6 +443,7 @@ if (typeof module === "object") {
         mediaLabels,
         mediaCover,
         mediaTimeline,
+        mediaTickDelay,
         mediaSprites,
         marqueeDelay,
         mediaScreen,

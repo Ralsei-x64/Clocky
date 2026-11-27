@@ -5,7 +5,7 @@ const path = require("node:path");
 const { performance } = require("node:perf_hooks");
 const {
     faceFor, quotaFor, returnSecondsFor, clockLayer, mediaLabels, mediaCover,
-    marqueeDelay, mediaScreen, mediaSprites, mediaTimeline, quotaScreen, frame,
+    marqueeDelay, mediaScreen, mediaSprites, mediaTimeline, mediaTickDelay, quotaScreen, frame,
 } = require("./faces");
 const { createUsageSource } = require("./sources/usage");
 const { createMediaSource } = require("./sources/media");
@@ -410,7 +410,10 @@ class Infobar {
                 to: target ?? adjacent(direction),
                 start: sampledAt,
             };
-            if (this.slide.to === "media") this.marqueeStarted = this.slide.start;
+            if (this.slide.to === "media") {
+                this.marqueeStarted = this.slide.start;
+                this.readMedia.refresh?.();
+            }
             if (this.slide.to === "stats" && Date.now() >= (this.readAfter.stats || 0)) delete this.values.stats;
         }
         const slide = this.slide;
@@ -454,7 +457,7 @@ class Infobar {
             delay = this.queue.length
                 ? 0
                 : page === "media"
-                ? 1000 - now.getMilliseconds()
+                ? mediaTickDelay(this.values.media, now)
                 : page === "clock"
                 ? 60000 - now.getTime() % 60000
                 : Math.max(1000, (this.readAfter[page === "stats" ? page : quotaFor(this.settings)] || 0) - Date.now());
@@ -573,6 +576,7 @@ function startSession(
                 return true;
             } : null);
         } else if (event === "systemDidWakeUp") {
+            media.refresh?.();
             for (const { display } of active.values()) {
                 display.clearPresses();
                 display.readAfter = {};

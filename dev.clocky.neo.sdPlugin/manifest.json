@@ -2,7 +2,7 @@
   "Name": "Clocky",
   "Author": "Clocky",
   "Description": "Clock, media player, Codex usage and system stats for the Stream Deck Neo Infobar.",
-  "Version": "1.11.0",
+  "Version": "1.11.2",
   "CodePath": "plugin.js",
   "Icon": "assets/icon",
   "Category": "Clocky",

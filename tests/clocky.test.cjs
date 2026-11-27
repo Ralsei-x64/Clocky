@@ -8,7 +8,7 @@ const plugin = path.resolve(__dirname, "../dev.clocky.neo.sdPlugin");
 const { startSession, Infobar } = require(path.join(plugin, "plugin"));
 const { windowFor, remaining, contextRemaining, latestUsage } = require(path.join(plugin, "sources/usage"));
 const { mediaLabels, mediaScreen, quotaScreen, returnSecondsFor } = require(path.join(plugin, "faces"));
-const { createMediaSource, systemTrack } = require(path.join(plugin, "sources/media"));
+const { createMediaSource, systemTrack, systemEvents } = require(path.join(plugin, "sources/media"));
 const { ClockBackground, tintForFace } = require(path.join(plugin, "backgrounds"));
 const { statsScreen } = require(path.join(plugin, "stats-screen"));
 const { pageLayout } = require(path.join(plugin, "pages"));
@@ -109,7 +109,9 @@ test("GIF backgrounds honor unequal frame times, repeated cycles, and a finite l
     assert.deepEqual(new ClockBackground().at(), { image: undefined, delay: Infinity });
 });
 
-test("opposite keypad actions slide, wrap, and stay on their device and profile", async () => {
+test("opposite keypad actions slide, wrap, and stay on their device and profile", async (t) => {
+    // Other profiles' clocks would legitimately redraw if this run crossed a minute boundary.
+    t.mock.timers.enable({ apis: ["Date"], now: Date.UTC(2026, 10, 27, 10, 15, 10) });
     const sent = [];
     const socket = { readyState: 1, bufferedAmount: 0, send: (raw) => sent.push(JSON.parse(raw)) };
     const track = {
@@ -1156,4 +1158,130 @@ test("opted-in displays share off-screen playback polling and stop it when disab
         await settle();
         assert.equal(reads, 2);
     } finally { a.close(); b.close(); }
+});
+
+test("macOS uses its current microsecond playhead and keeps moving at the reported playback speed", () => {
+    const state = { title: "Example", playing: true, playbackRate: 1.5, durationMicros: 120_000_000,
+        timestampEpochMicros: 10_000_000, elapsedTimeMicros: 3_000_000, elapsedTimeNowMicros: 40_500_000 };
+    const track = systemTrack(state, 20_000);
+    assert.equal(track.position, 40.5);
+    assert.equal(track.duration, 120);
+    assert.match(mediaScreen(track, new Date(22_000), () => ""), />00:43</);
+    assert.equal(systemTrack(state, 22_000, track).position, 43.5);
+    assert.equal(systemTrack({ ...state, elapsedTimeNowMicros: 6_000_000 }, 22_001, track).position, 6);
+    const paused = systemTrack({ ...state, playing: false, playbackRate: 0 }, 22_000);
+    assert.match(mediaScreen(paused, new Date(32_000), () => ""), />00:40</);
+});
+
+test("sparse macOS resume, seek, artwork, and missed pause events keep the Sonic timeline in sync", async (t) => {
+    t.mock.timers.enable({ apis: ["Date", "setTimeout"], now: 100_000 });
+    t.mock.method(performance, "now", Date.now);
+    const flush = () => new Promise(resolve => setImmediate(resolve));
+    async function advance(ms) {
+        for (let i = 0; i < ms; i += 50) {
+            t.mock.timers.tick(Math.min(50, ms - i));
+            await flush();
+        }
+    }
+    let events, reads = 0, timeline;
+    let state = { title: "Song", artist: "Artist", bundleIdentifier: "browser", playing: false, playbackRate: 0,
+        elapsedTimeMicros: 66_000_000, timestampEpochMicros: 1_000_000, durationMicros: 120_000_000 };
+    const source = createMediaSource({
+        watch: (publish, close, refresh, previous) => { events = systemEvents(publish, refresh, previous); return () => {}; },
+        readTrack: async previous => { reads++; return state && systemTrack(state, Date.now(), previous); },
+        loadArtwork: async () => null,
+    });
+    const bar = new Infobar({ defaultPage: "media" }, () => true, source, async () => null);
+    try {
+        bar.setNative(p => { if (p.timeline !== undefined) timeline = p.timeline; return true; });
+        events({ diff: false, payload: state });
+        await advance(100);
+        assert.match(timeline, />01:06</);
+        state = { ...state, playing: true }; // Still reporting the previous paused rate and timestamp.
+        events({ diff: true, payload: { playing: true } });
+        await advance(6200);
+        assert.match(timeline, />01:12</); // Includes the periodic snapshot with the same frozen sample.
+        const before = bar.values.media.sampledAt;
+        events({ diff: true, payload: { artworkData: null } });
+        assert.equal(bar.values.media.sampledAt, before);
+        state = { ...state, playbackRate: 1, elapsedTimeMicros: 9_000_000, timestampEpochMicros: Date.now() * 1000 };
+        events({ diff: true, payload: { playbackRate: 1, elapsedTimeMicros: state.elapsedTimeMicros } });
+        await advance(100);
+        assert.match(timeline, />00:09</);
+        state = { ...state, playing: false, playbackRate: 0, elapsedTimeMicros: 10_000_000 };
+        await advance(6500); // No pause event was delivered.
+        assert.match(timeline, />00:10</);
+        assert.equal(bar.values.media.playing, false);
+        const pausedAt = reads;
+        await advance(1000);
+        assert.match(timeline, />00:10</);
+        assert.ok(reads <= pausedAt + 1);
+        events({ diff: false, payload: null });
+        await advance(100);
+        assert.equal(bar.values.media.title, "Song"); // System snapshot confirms a transient empty event.
+        state = null;
+        events({ diff: false, payload: null });
+        await advance(100);
+        assert.equal(bar.values.media, null);
+    } finally { bar.close(); }
+});
+
+test("macOS preserves a measured playhead across gaps, pauses, and missing browser identifiers", () => {
+    const song = { title: "One", artist: "Artist", bundleIdentifier: "browser", playing: true };
+    const first = systemTrack({ ...song, uniqueIdentifier: "one", duration: 180, elapsedTime: 25 }, 10_000);
+    const gap = systemTrack(song, 18_000, first);
+    assert.equal(gap.position, 33);
+    assert.equal(gap.duration, 180);
+    assert.equal(gap.trackId, "one");
+    const pause = systemTrack({ ...song, playing: false }, 20_000, gap);
+    const resume = systemTrack(song, 50_000, pause);
+    assert.equal(pause.position, 35);
+    assert.equal(resume.position, 35);
+    assert.match(mediaScreen(resume, new Date(53_000), () => ""), />00:38</);
+    for (const changed of [{ title: "Two" }, { uniqueIdentifier: "two" }, { bundleIdentifier: "other" }]) {
+        const next = systemTrack({ ...song, ...changed }, 54_000, resume);
+        assert.equal(next.position, null);
+        assert.equal(next.duration, undefined);
+    }
+});
+
+test("macOS renders an elapsed-only seek immediately and ignores a delayed older measurement", t => {
+    t.mock.timers.enable({ apis: ["Date"], now: 100_000 });
+    let track;
+    const receive = systemEvents(t => { track = t; }, () => {}, () => track);
+    const song = { title: "One", artist: "A", bundleIdentifier: "browser", playing: true, playbackRate: 1 };
+    receive({ diff: false, payload: { ...song, timestampEpochMicros: 90_000_000, elapsedTimeMicros: 40_000_000, duration: 120 } });
+    assert.equal(track.position, 50);
+    t.mock.timers.tick(3000);
+    receive({ diff: true, payload: { elapsedTimeMicros: 0 } });
+    assert.equal(track.position, 0);
+    t.mock.timers.tick(2000);
+    const older = systemTrack({ ...song, elapsedTime: 40, timestampEpochMicros: 90_000_000 }, Date.now(), track);
+    assert.match(mediaScreen(older, new Date(), () => ""), />00:02</);
+    receive({ diff: true, payload: { playing: false } });
+    assert.equal(track.position, 2);
+    t.mock.timers.tick(6000);
+    receive({ diff: true, payload: { playing: true, playbackRate: 2 } });
+    assert.equal(track.position, 2);
+    t.mock.timers.tick(2000);
+    assert.match(mediaScreen(track, new Date(), () => ""), />00:06</);
+    receive({ diff: true, payload: { title: "Another song" } });
+    assert.equal(track.position, null);
+    assert.equal(track.duration, undefined);
+    assert.equal(track.sourceId, "browser");
+});
+
+test("an in-flight macOS snapshot fills the missing time after the stream announces the same song", async () => {
+    let publish, finish;
+    const reader = createMediaSource({
+        watch: fn => { publish = fn; return () => {}; },
+        readTrack: () => new Promise(resolve => { finish = resolve; }),
+    });
+    const unsubscribe = reader.subscribe(() => {});
+    try {
+        const state = { title: "Song", bundleIdentifier: "browser", playing: true };
+        publish(systemTrack(state, 1000));
+        finish(systemTrack({ ...state, elapsedTime: 39, duration: 120 }, 1000));
+        assert.equal((await reader()).position, 39);
+    } finally { unsubscribe(); }
 });
