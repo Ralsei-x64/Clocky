@@ -1,0 +1,77 @@
+{
+  "Name": "Clocky",
+  "Author": "Clocky",
+  "Description": "Clock, media player, Codex usage and system stats for the Stream Deck Neo Infobar.",
+  "Version": "1.11.0",
+  "CodePath": "plugin.js",
+  "Icon": "assets/icon",
+  "Category": "Clocky",
+  "OS": [
+    {
+      "Platform": "mac"
+    },
+    {
+      "Platform": "windows"
+    },
+    {
+      "Platform": "linux"
+    }
+  ],
+  "Actions": [
+    {
+      "UUID": "dev.clocky.neo.clockface",
+      "Name": "Clockface",
+      "Tooltip": "Show the clock, media player, AI usage, and system stats on the Neo Infobar.",
+      "Controllers": [
+        "Infobar"
+      ],
+      "Icon": "assets/icon",
+      "States": [
+        {
+          "Image": "assets/default",
+          "ShowTitle": false
+        }
+      ],
+      "PropertyInspectorPath": "inspector.html",
+      "SupportedInMultiActions": false
+    },
+    {
+      "UUID": "dev.clocky.neo.previous",
+      "Name": "Previous Screen",
+      "Tooltip": "Tap for the previous screen. Hold for three seconds to pin the current page.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "Icon": "assets/previous",
+      "States": [
+        {
+          "Image": "assets/previous",
+          "ShowTitle": false
+        }
+      ],
+      "SupportedInMultiActions": false,
+      "PropertyInspectorPath": "arrow-inspector.html"
+    },
+    {
+      "UUID": "dev.clocky.neo.next",
+      "Name": "Next Screen",
+      "Tooltip": "Tap for the next screen. Hold for three seconds to pin the current page.",
+      "Controllers": [
+        "Keypad"
+      ],
+      "Icon": "assets/next",
+      "States": [
+        {
+          "Image": "assets/next",
+          "ShowTitle": false
+        }
+      ],
+      "SupportedInMultiActions": false,
+      "PropertyInspectorPath": "arrow-inspector.html"
+    }
+  ],
+  "CodePathMac": "clocky-mac",
+  "Nodejs": {
+    "Version": "22"
+  }
+}

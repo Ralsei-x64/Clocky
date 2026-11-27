@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Clocky face selector</title>
+    <style>
+        :root { color-scheme: dark; font: 14px system-ui, sans-serif; }
+        body { margin: 12px; color: #efefef; background: #232323; }
+        main { width: min(100%, 320px); margin-inline: auto; }
+        label { display: block; margin: 10px 0 6px; }
+        select, input { box-sizing: border-box; width: 100%; padding: 5px 8px; font: inherit; }
+        input[type=file] { padding-inline: 0; }
+        input[type=color] { width: 44px; height: 26px; padding: 2px; }
+        input[type=range] { padding: 0; margin: 0; }
+        .tint-row { display: flex; align-items: center; justify-content: space-between; }
+        .tint-row label { margin: 0; }
+        #background-status { display: block; }
+        small { display: block; margin-top: 4px; color: #b3b3b3; }
+        #preview svg { display: block; max-width: 100%; height: auto; margin: 14px auto 0; }
+        fieldset { border: 0; padding: 0; margin: 12px 0 0; }
+        legend { padding: 0; margin-bottom: 4px; }
+        .page-row { display: flex; align-items: center; gap: 4px; padding-block: 3px; }
+        .page-row label { display: inline-flex; align-items: center; flex: 1; gap: 7px; margin: 0; }
+        .page-row input { width: auto; margin: 0; }
+        .checkbox-option { display: flex; gap: 7px; align-items: baseline; }
+        .checkbox-option input { width: auto; margin: 0; }
+        .page-row button { width: 30px; min-height: 24px; font: inherit; }
+    </style>
+    <script defer src="assets/glyphs.js"></script>
+    <script defer src="faces.js"></script>
+    <script defer src="pages.js"></script>
+    <script defer src="backgrounds.js"></script>
+    <script defer src="vendor/omggif.js"></script>
+    <script defer src="background-import.js"></script>
+    <script defer src="inspector-socket.js"></script>
+    <script defer src="inspector.js"></script>
+</head>
+<body>
+    <main>
+        <fieldset id="pages">
+            <legend>Pages</legend>
+            <div id="page-list"></div>
+            <label class="checkbox-option"><input id="show-now-playing" type="checkbox">Show Now Playing for 2 seconds when a song starts or changes</label>
+            <label for="default-page">Default page</label>
+            <select id="default-page" aria-describedby="page-status"></select>
+            <small id="page-status" role="status"></small>
+        </fieldset>
+        <fieldset id="return-controls">
+            <label for="return-seconds">Return to default page after (seconds)</label>
+            <input id="return-seconds" type="number" min="0" step="1" value="30" required aria-describedby="timer-help">
+            <small id="timer-help">Use 0 to turn off the return timer.</small>
+        </fieldset>
+        <label for="face">Clockface</label>
+        <select id="face"></select>
+        <div id="preview" role="img" aria-label="Clockface preview"></div>
+        <label for="background-scope">Use background on</label>
+        <select id="background-scope"><option value="face">This clockface</option><option value="default">All faces without their own image</option></select>
+        <label for="background">Background image or GIF</label>
+        <input type="file" id="background" accept="image/png,image/jpeg,image/webp,image/gif">
+        <button type="button" id="restore-background" hidden>Restore original background</button>
+        <small id="background-status" role="status"></small>
+        <fieldset id="wallpaper-tint" hidden>
+            <legend id="tint-title">Wallpaper tint</legend>
+            <div class="tint-row"><label for="tint-color">Color</label><input type="color" id="tint-color" value="#000000"></div>
+            <label for="tint-strength">Strength <output id="tint-value" for="tint-strength">0%</output></label>
+            <input type="range" id="tint-strength" min="0" max="100" step="1" value="0">
+        </fieldset>
+        <label for="quota">AI usage to display</label>
+        <select id="quota">
+            <option value="current">Current usage window remaining</option>
+            <option value="weekly">Weekly allowance remaining</option>
+            <option value="context">Conversation context remaining</option>
+        </select>
+    </main>
+</body>
+</html>

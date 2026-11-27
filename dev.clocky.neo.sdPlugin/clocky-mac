@@ -1,0 +1,4 @@
+#!/bin/sh
+PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+export PATH
+exec node "$(dirname "$0")/plugin.js" "$@"

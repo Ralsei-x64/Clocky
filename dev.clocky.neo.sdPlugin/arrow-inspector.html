@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Clocky button color</title>
+    <style>
+        :root { color-scheme: dark; font: 14px system-ui, sans-serif; }
+        body { margin: 12px; color: #efefef; background: #232323; }
+        main { max-width: 320px; margin: auto; }
+        label { display: block; margin-bottom: 6px; }
+        input { width: 56px; height: 32px; vertical-align: middle; }
+        output { margin-left: 6px; font-variant-numeric: tabular-nums; }
+    </style>
+    <script defer src="arrows.js"></script>
+    <script defer src="inspector-socket.js"></script>
+    <script defer src="arrow-inspector.js"></script>
+</head>
+<body>
+    <main>
+        <label for="color">Arrow color</label>
+        <input type="color" id="color" value="#ffffff">
+        <output for="color" id="color-value">#FFFFFF</output>
+    </main>
+</body>
+</html>
